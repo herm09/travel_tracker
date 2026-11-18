@@ -1,0 +1,51 @@
+name: Check-in du lundi
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+jobs:
+  send-weekly-checkin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Vérifier l'heure (gestion heure d'été / hiver)
+        id: time-check
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_send=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          paris_utc_offset=$(TZ=Europe/Paris date +%z)
+          if [ "$paris_utc_offset" = "+0100" ]; then expected_schedule='0 8 * * 1'; else expected_schedule='0 7 * * 1'; fi
+          if [ "${{ github.event.schedule }}" = "$expected_schedule" ]; then
+            echo "should_send=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Pas le bon créneau pour cette période de l'année, on saute."
+            echo "should_send=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.time-check.outputs.should_send == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.time-check.outputs.should_send == 'true'
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Installer les dépendances
+        if: steps.time-check.outputs.should_send == 'true'
+        run: npm ci
+
+      - name: Envoyer le message du lundi
+        if: steps.time-check.outputs.should_send == 'true'
+        run: npm run test-message
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          GUILD_ID: ${{ secrets.GUILD_ID }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+          ROLE_NAMES: Dev back,Dev front
+          CREATE_THREAD: 'true'
