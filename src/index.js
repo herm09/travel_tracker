@@ -69,13 +69,13 @@ async function sendWeeklyCheckIn() {
 
     if (!channel || !channel.isTextBased()) {
       console.error('❌ CHANNEL_ID ne correspond pas à un salon textuel.');
-      return;
+      return false;
     }
 
     const rolesToMention = await findRolesToMention(guild);
     if (rolesToMention.length === 0) {
       console.error('❌ Aucun rôle trouvé, message non envoyé.');
-      return;
+      return false;
     }
 
     const roleMentions = rolesToMention.map((role) => `<@&${role.id}>`).join(' ');
@@ -97,8 +97,10 @@ async function sendWeeklyCheckIn() {
     }
 
     console.log(`✅ Message du lundi envoyé dans #${channel.name}`);
+    return true;
   } catch (sendError) {
     console.error('❌ Erreur pendant l\'envoi du message :', sendError);
+    return false;
   }
 }
 
@@ -106,8 +108,10 @@ client.once('ready', async () => {
   console.log(`🤖 Connecté en tant que ${client.user.tag}`);
 
   if (sendImmediately) {
-    await sendWeeklyCheckIn();
+    const wasSent = await sendWeeklyCheckIn();
     client.destroy();
+    // Code de sortie en erreur pour que GitHub Actions affiche le run en rouge
+    process.exitCode = wasSent ? 0 : 1;
     return;
   }
 
